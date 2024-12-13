@@ -1,12 +1,19 @@
-# Start with a base image that includes Rust
-FROM rust:latest as builder
+# Use Alpine as the base image for both build and runtime
+FROM alpine:3.18 as builder
 
-# Install Node.js and Python
-RUN apt-get update && apt-get install -y \
+# Install build dependencies
+RUN apk add --no-cache \
+    curl \
+    gcc \
+    musl-dev \
     nodejs \
     npm \
     python3 \
-    python3-pip
+    py3-pip
+
+# Install Rust using rustup
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Set the working directory in the container
 WORKDIR /usr/src/app
@@ -18,15 +25,15 @@ COPY . .
 RUN cargo build --release
 
 # Create the final image
-FROM debian:buster-slim
+FROM alpine:3.18
 
 # Install runtime dependencies
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     nodejs \
     npm \
     python3 \
-    python3-pip \
-    && rm -rf /var/lib/apt/lists/*
+    py3-pip \
+    libgcc
 
 # Copy the built executable from the builder stage
 COPY --from=builder /usr/src/app/target/release/code-runner /usr/local/bin/code-runner
@@ -38,7 +45,7 @@ WORKDIR /usr/src/app
 COPY . .
 
 # Expose the port your Rust webserver will run on
-EXPOSE 8080
+EXPOSE 4000 
 
 # Command to run your application
 CMD ["code-runner"]

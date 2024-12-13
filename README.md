@@ -1,4 +1,4 @@
-# Run Service
+# code-runner 
 
 A simple Rust-based HTTP service that accepts POST requests at the `/run` endpoint, executes a provided script with a specified language interpreter (e.g. Python or Node.js), and returns the `stdout` and `stderr` as JSON.
 
