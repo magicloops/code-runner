@@ -1,15 +1,15 @@
-# Use Alpine as the base image for both build and runtime
-FROM alpine:3.18 as builder
+# Use Debian Bookworm as the base image for both build and runtime
+FROM debian:bookworm-slim as builder
 
 # Install build dependencies
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y \
     curl \
-    gcc \
-    musl-dev \
+    build-essential \
     nodejs \
     npm \
     python3 \
-    py3-pip
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Rust using rustup
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -25,15 +25,15 @@ COPY . .
 RUN cargo build --release
 
 # Create the final image
-FROM alpine:3.18
+FROM debian:bookworm-slim
 
 # Install runtime dependencies
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y \
     nodejs \
     npm \
     python3 \
-    py3-pip \
-    libgcc
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy the built executable from the builder stage
 COPY --from=builder /usr/src/app/target/release/code-runner /usr/local/bin/code-runner
@@ -45,7 +45,7 @@ WORKDIR /usr/src/app
 COPY . .
 
 # Expose the port your Rust webserver will run on
-EXPOSE 4000 
+EXPOSE 4000
 
 # Command to run your application
 CMD ["code-runner"]

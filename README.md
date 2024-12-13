@@ -45,7 +45,7 @@ Use the default `cargo build` for faster compilation (unoptimized):
 cargo build
 ```
 
-The binary will be located at `target/debug/run_service`.
+The binary will be located at `target/debug/code-runner`.
 
 ### Production Build
 
@@ -55,7 +55,7 @@ Use the `--release` flag for an optimized production build:
 cargo build --release
 ```
 
-The binary will be located at `target/release/run_service`.
+The binary will be located at `target/release/code-runner`.
 
 ## Running
 
@@ -70,15 +70,15 @@ Once built, you can run the server directly from Cargo or by calling the binary.
 - From Binary (release mode):
 
   ```sh
-  ./target/release/run_service
+  ./target/release/code-runner
   ```
 
-The server will start listening on `0.0.0.0:3000`.
+The server will start listening on `0.0.0.0:4000`.
 
 You should see something like:
 
 ```csharp
-Listening on 0.0.0.0:3000
+Listening on 0.0.0.0:4000
 ```
 
 ## Testing the Service
@@ -88,7 +88,7 @@ Listening on 0.0.0.0:3000
 Below is a sample `curl` command to test the `/run` endpoint with a Python script:
 
 ```sh
-curl -X POST http://localhost:3000/run \
+curl -X POST http://localhost:4000/run \
   -H 'Content-Type: application/json' \
   -d '{
         "image": "python:latest",
@@ -131,7 +131,7 @@ Then rebuild and rerun the server.
 If testing with Node.js:
 
 ```sh
-curl -X POST http://localhost:3000/run \
+curl -X POST http://localhost:4000/run \
   -H 'Content-Type: application/json' \
   -d '{
         "image": "node:latest",

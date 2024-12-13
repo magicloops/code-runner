@@ -1,0 +1,7 @@
+spec: v0.6
+
+name: code-runner 
+
+rootfs: ./Dockerfile
+
+cmd: ["/usr/local/bin/code-runner"]
