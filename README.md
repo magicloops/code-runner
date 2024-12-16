@@ -157,6 +157,22 @@ You should see:
 }
 ```
 
+## Running the service
+
+### Docker
+
+1. Build the Docker image:
+
+```sh
+docker build -t code-runner-service:container -f Dockerfile.container .
+```
+
+2. Run the container:
+
+```sh
+docker run -p 4000:4000 code-runner-service:container
+```
+
 ## Troubleshooting
 
 ### Command Execution Error (No such file or directory):
