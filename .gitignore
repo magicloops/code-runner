@@ -23,3 +23,5 @@ Cargo.lock
 # Unikraft files
 .unikraft/
 base/
+
+rootfs*
