@@ -35,6 +35,10 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
+# Insure certificates are installed
+RUN apt-get update && apt-get install -y ca-certificates
+RUN update-ca-certificates
+
 # Copy the built executable from the builder stage
 COPY --from=builder /usr/src/app/target/release/code-runner /usr/local/bin/code-runner
 
