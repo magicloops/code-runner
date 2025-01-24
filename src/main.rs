@@ -6,10 +6,9 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use std::io::Write;
 use tokio::process::Command;
 use tempfile::tempdir;
-use uuid::Uuid;
+use reqwest;
 
 #[derive(Deserialize)]
 struct FileSpec {
@@ -44,18 +43,8 @@ async fn main() {
 }
 
 async fn run_handler(Json(body): Json<RunRequest>) -> (StatusCode, axum::Json<serde_json::Value>) {
-    // Verify the language and determine the command
+    // Identify the language 
     let language = body.payload.language.as_str();
-    let command = match language {
-        "node" => "node",
-        "python" => "python3",
-        _ => {
-            return (
-                StatusCode::BAD_REQUEST,
-                axum::Json(json!({ "error": "Unsupported language"})),
-            );
-        }
-    };
 
     // Create a temporary directory to store the files
     let dir = match tempdir() {
@@ -99,31 +88,89 @@ async fn run_handler(Json(body): Json<RunRequest>) -> (StatusCode, axum::Json<se
         }
     };
 
-    // Execute the command
-    let mut cmd = Command::new(command);
-    cmd.arg(&main_file_path);
+    // Depending on the language, either call Python or forward to Node-runner
+    match language {
+        "python" => {
+            // Keep your existing spawn logic for Python
+            let mut cmd = Command::new("python3");
+            cmd.arg(&main_file_path);
 
-    let output = match cmd.output().await {
-        Ok(o) => o,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                axum::Json(json!({ "error": format!("Command execution error: {}", e) })),
-            );
+            let output = match cmd.output().await {
+                Ok(o) => o,
+                Err(e) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        axum::Json(json!({ "error": format!("Command execution error: {}", e) })),
+                    );
+                }
+            };
+
+            let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr_str = String::from_utf8_lossy(&output.stderr).to_string();
+
+            let response_json = json!({
+                "stdout": stdout_str,
+                "stderr": stderr_str,
+                "exit_code": output.status.code(),
+            });
+
+            (StatusCode::OK, axum::Json(response_json))
         }
-    };
+        "node" => {
+            // 1) Read the JS code from main_file_path
+            // 2) Send it to Node-runner on localhost:5000
+            let code = match std::fs::read_to_string(&main_file_path) {
+                Ok(c) => c,
+                Err(e) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        axum::Json(json!({ "error": format!("Read file error: {}", e) })),
+                    );
+                }
+            };
 
-    // Convert output to String
-    let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr_str = String::from_utf8_lossy(&output.stderr).to_string();
+            // Construct JSON body to send
+            let body_json = json!({ "code": code });
 
-    // Return the response as JSON
-    let response_json = json!({
-        "stdout": stdout_str,
-        "stderr": stderr_str,
-        "exit_code": output.status.code(),
-    });
+            // Make an HTTP POST to node-runner
+            let client = reqwest::Client::new();
+            let node_runner_url = "http://127.0.0.1:5000/run";
 
-    (StatusCode::OK, axum::Json(response_json))
+            // Send request
+            let response = match client.post(node_runner_url)
+                .json(&body_json)
+                .send()
+                .await
+            {
+                Ok(resp) => resp,
+                Err(e) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        axum::Json(json!({ "error": format!("Failed to reach node-runner: {}", e) })),
+                    );
+                }
+            };
+
+            // Parse the JSON response from node-runner
+            let response_value: serde_json::Value = match response.json().await {
+                Ok(val) => val,
+                Err(e) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        axum::Json(json!({ "error": format!("Invalid JSON from node-runner: {}", e) })),
+                    );
+                }
+            };
+
+            // Return node-runner's response back to the client
+            (StatusCode::OK, axum::Json(response_value))
+        }
+        _ => {
+            (
+                StatusCode::BAD_REQUEST,
+                axum::Json(json!({ "error": "Unsupported language" })),
+            )
+        }
+    }
 }
 

@@ -18,11 +18,15 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 # Set the working directory in the container
 WORKDIR /usr/src/app
 
-# Copy the Rust project files
+# Copy the entire repo
 COPY . .
 
 # Build the Rust project
 RUN cargo build --release
+
+# Install npm dependencies for node-runner
+WORKDIR /usr/src/app/node-runner
+RUN npm install
 
 # Create the final image
 FROM debian:bookworm-slim
@@ -33,23 +37,22 @@ RUN apt-get update && apt-get install -y \
     npm \
     python3 \
     python3-pip \
-    && rm -rf /var/lib/apt/lists/*
-
-# Insure certificates are installed
-RUN apt-get update && apt-get install -y ca-certificates
-RUN update-ca-certificates
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-ca-certificates
 
 # Copy the built executable from the builder stage
 COPY --from=builder /usr/src/app/target/release/code-runner /usr/local/bin/code-runner
 
+# Copy node-runner source and installed dependencies
+COPY --from=builder /usr/src/app/node-runner /usr/src/app/node-runner
+
 # Set the working directory
 WORKDIR /usr/src/app
-
-# Copy any additional files needed for your application
-COPY . .
 
 # Expose the port your Rust webserver will run on
 EXPOSE 4000
 
 # Command to run your application
-CMD ["code-runner"]
+CMD ["bash", "-c", "node /usr/src/app/node-runner/node-runner.js & code-runner"]
+
