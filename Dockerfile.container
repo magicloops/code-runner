@@ -1,10 +1,12 @@
 # Use Debian Bookworm as the base image for both build and runtime
 FROM debian:bookworm-slim as builder
 
-# Install curl, Node.js, and build dependencies
+# Install curl, Node.js, build dependencies, and Python
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
+    nodejs \
+    npm \
     python3 \
     python3-pip \
     pkg-config \
@@ -12,6 +14,15 @@ RUN apt-get update && apt-get install -y \
     && bash nodesource_setup.sh \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Python packages
+RUN pip3 install \
+    cachetools \
+    nose \
+    numpy \
+    python-dateutil \
+    pytz \
+    six
 
 # Verify Node.js installation
 RUN node -v
@@ -36,7 +47,7 @@ RUN npm install
 # Create the final image
 FROM debian:bookworm-slim
 
-# Install curl, Node.js, and runtime dependencies
+# Install curl, Node.js, Python runtime dependencies, and ca-certificates
 RUN apt-get update && apt-get install -y \
     curl \
     python3 \
@@ -47,6 +58,15 @@ RUN apt-get update && apt-get install -y \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/* \
     && update-ca-certificates
+
+# Install Python packages
+RUN pip3 install \
+    cachetools \
+    nose \
+    numpy \
+    python-dateutil \
+    pytz \
+    six
 
 # Verify Node.js installation
 RUN node -v
