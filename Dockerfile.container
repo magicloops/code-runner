@@ -1,7 +1,7 @@
 # Use Debian Bookworm as the base image for both build and runtime
 FROM debian:bookworm-slim as builder
 
-# Install build dependencies
+# Install curl, Node.js, build dependencies, and Python
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
@@ -9,7 +9,27 @@ RUN apt-get update && apt-get install -y \
     npm \
     python3 \
     python3-pip \
+    python3-venv \
+    pkg-config \
+    && curl -fsSL https://deb.nodesource.com/setup_23.x -o nodesource_setup.sh \
+    && bash nodesource_setup.sh \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
+
+# Create a virtual environment for Python
+RUN python3 -m venv /opt/venv
+
+# Activate the virtual environment and install Python packages
+RUN /opt/venv/bin/pip install \
+    cachetools \
+    nose \
+    numpy \
+    python-dateutil \
+    pytz \
+    six
+
+# Verify Node.js installation
+RUN node -v
 
 # Install Rust using rustup
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -18,38 +38,52 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 # Set the working directory in the container
 WORKDIR /usr/src/app
 
-# Copy the Rust project files
+# Copy the entire repo
 COPY . .
 
 # Build the Rust project
 RUN cargo build --release
 
+# Install npm dependencies for node-runner
+WORKDIR /usr/src/app/node-runner
+RUN npm install
+
 # Create the final image
 FROM debian:bookworm-slim
 
-# Install runtime dependencies
+# Install curl, Node.js, Python runtime dependencies, and ca-certificates
 RUN apt-get update && apt-get install -y \
-    nodejs \
-    npm \
+    curl \
     python3 \
     python3-pip \
-    && rm -rf /var/lib/apt/lists/*
+    python3-venv \
+    ca-certificates \
+    && curl -fsSL https://deb.nodesource.com/setup_23.x -o nodesource_setup.sh \
+    && bash nodesource_setup.sh \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-ca-certificates
 
-# Insure certificates are installed
-RUN apt-get update && apt-get install -y ca-certificates
-RUN update-ca-certificates
+# Copy the virtual environment with installed Python packages
+COPY --from=builder /opt/venv /opt/venv
+
+# Set the virtual environment path
+ENV PATH="/opt/venv/bin:${PATH}"
+
+# Verify Node.js installation
+RUN node -v
 
 # Copy the built executable from the builder stage
 COPY --from=builder /usr/src/app/target/release/code-runner /usr/local/bin/code-runner
 
+# Copy node-runner source and installed dependencies
+COPY --from=builder /usr/src/app/node-runner /usr/src/app/node-runner
+
 # Set the working directory
 WORKDIR /usr/src/app
-
-# Copy any additional files needed for your application
-COPY . .
 
 # Expose the port your Rust webserver will run on
 EXPOSE 4000
 
 # Command to run your application
-CMD ["code-runner"]
+CMD ["bash", "-c", "node /usr/src/app/node-runner/node-runner.js & code-runner"]
