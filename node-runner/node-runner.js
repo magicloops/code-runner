@@ -69,11 +69,16 @@ const server = http.createServer(async (req, res) => {
           error: (...args) => { stderr += args.join(' ') + '\n'; }
         };
 
+        // Create a new Math object that inherits from the global Math
+        const sandboxMath = Object.create(Math);
+        // Override only the random method
+        sandboxMath.random = customRandom;
+
         const sandbox = {
           console: sandboxConsole,
           result: null,
           crypto: crypto,
-          Math: { ...Math, random: customRandom }
+          Math: sandboxMath
         };
 
         vm.runInNewContext(code, sandbox, { timeout: 360000 });
