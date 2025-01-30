@@ -12,8 +12,7 @@ use tokio::signal;
 async fn main() {
     // Build our application with routes
     let app = Router::new()
-        .route("/run", post(code_runner::run_handler))
-        .route("/reset_entropy", post(entropy_reset::handle_reset_entropy));
+        .route("/run", post(code_runner::run_handler));
 
     // Run it
     let addr = SocketAddr::from(([0, 0, 0, 0], 4000));

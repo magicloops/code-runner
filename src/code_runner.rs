@@ -8,6 +8,8 @@ use tokio::process::Command;
 use tempfile::tempdir;
 use reqwest;
 
+use crate::entropy_reset::reset_entropy_with_bytes;
+
 #[derive(Deserialize)]
 pub struct FileSpec {
     name: String,
@@ -22,11 +24,21 @@ pub struct Payload {
 
 #[derive(Deserialize)]
 pub struct RunRequest {
-    //image: String, //Legacy from past code-runner
     payload: Payload,
+    entropy: Option<String>,
 }
 
 pub async fn run_handler(Json(body): Json<RunRequest>) -> (StatusCode, axum::Json<serde_json::Value>) {
+    // If entropy is provided, reset it
+    if let Some(entropy) = &body.entropy {
+        if let Err(e) = reset_entropy_with_bytes(entropy) {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(json!({ "error": format!("Failed to reset entropy: {}", e) })),
+            );
+        }
+    }
+
     // Identify the language 
     let language = body.payload.language.as_str();
 
@@ -47,8 +59,6 @@ pub async fn run_handler(Json(body): Json<RunRequest>) -> (StatusCode, axum::Jso
         let file_path = dir.path().join(&f.name);
         match std::fs::write(&file_path, f.content.as_bytes()) {
             Ok(_) => {
-                // If there's only one file or we assume the first file is the main file:
-                // For simplicity, let's assume the first provided file is the entrypoint.
                 if main_file_path.is_none() {
                     main_file_path = Some(file_path);
                 }
@@ -72,7 +82,6 @@ pub async fn run_handler(Json(body): Json<RunRequest>) -> (StatusCode, axum::Jso
         }
     };
 
-    // Depending on the language, either call Python or forward to Node-runner
     match language {
         "python" => {
             // Keep your existing spawn logic for Python
@@ -101,8 +110,6 @@ pub async fn run_handler(Json(body): Json<RunRequest>) -> (StatusCode, axum::Jso
             (StatusCode::OK, axum::Json(response_json))
         }
         "node" => {
-            // 1) Read the JS code from main_file_path
-            // 2) Send it to Node-runner on localhost:5000
             let code = match std::fs::read_to_string(&main_file_path) {
                 Ok(c) => c,
                 Err(e) => {
@@ -113,14 +120,16 @@ pub async fn run_handler(Json(body): Json<RunRequest>) -> (StatusCode, axum::Jso
                 }
             };
 
-            // Construct JSON body to send
-            let body_json = json!({ "code": code });
+            let mut body_json = json!({ "code": code });
+            
+            // Add entropy to the request if it's provided
+            if let Some(entropy) = body.entropy {
+                body_json["entropy"] = json!(entropy);
+            }
 
-            // Make an HTTP POST to node-runner
             let client = reqwest::Client::new();
             let node_runner_url = "http://127.0.0.1:5000/run";
 
-            // Send request
             let response = match client.post(node_runner_url)
                 .json(&body_json)
                 .send()
@@ -135,7 +144,6 @@ pub async fn run_handler(Json(body): Json<RunRequest>) -> (StatusCode, axum::Jso
                 }
             };
 
-            // Parse the JSON response from node-runner
             let response_value: serde_json::Value = match response.json().await {
                 Ok(val) => val,
                 Err(e) => {
@@ -146,7 +154,6 @@ pub async fn run_handler(Json(body): Json<RunRequest>) -> (StatusCode, axum::Jso
                 }
             };
 
-            // Return node-runner's response back to the client
             (StatusCode::OK, axum::Json(response_value))
         }
         _ => {
@@ -156,5 +163,4 @@ pub async fn run_handler(Json(body): Json<RunRequest>) -> (StatusCode, axum::Jso
             )
         }
     }
-}
-
+}        

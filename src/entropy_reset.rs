@@ -1,14 +1,6 @@
-use axum::{
-    http::StatusCode,
-    response::IntoResponse,
-    Json
-};
 use libc::{c_int, ioctl};
 use nix::unistd;
 use nix::sys::stat;
-use reqwest;
-use serde_json::json;
-use serde::Deserialize;
 use std::os::fd::{AsRawFd, RawFd};
 use std::os::unix::fs::{MetadataExt, FileTypeExt};
 use std::{
@@ -49,58 +41,8 @@ fn rndaddentropy_ioctl_code() -> u64 {
 // If you want to forcibly reseed the CRNG (kernel >= 4.14), you can do:
 const RNDRESEEDCRNG: u64 = 0x5207; // _IO('R', 0x07)
 
-/// Struct used for deserializing the user-provided JSON payload.
-#[derive(Deserialize)]
-pub struct EntropyReq {
-    /// Hex-encoded bytes. E.g. "deadbeefcafe..."
-    entropy: String,
-}
-
-/// Main handler for POST /reset_entropy
-/// Expects JSON: { "entropy": "<hex string>" }
-pub async fn handle_reset_entropy(Json(payload): Json<EntropyReq>) -> impl IntoResponse {
-    match reset_entropy_with_bytes(&payload.entropy) {
-        Ok(_) => {
-            // System entropy reset was successful, now reset node-runner entropy
-            let client = reqwest::Client::new();
-            let node_runner_url = "http://127.0.0.1:5000/reset_entropy";
-            let body_json = json!({ "entropy": payload.entropy });
-
-            match client.post(node_runner_url)
-                .json(&body_json)
-                .send()
-                .await
-            {
-                Ok(resp) => {
-                    if resp.status().is_success() {
-                        (
-                            StatusCode::OK,
-                            format!("Successfully reset system and node-runner entropy ({}).\n", payload.entropy),
-                        )
-                    } else {
-                        (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            format!("System entropy reset successful, but node-runner reset failed: {}\n", resp.status()),
-                        )
-                    }
-                },
-                Err(e) => {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        format!("System entropy reset successful, but failed to reach node-runner: {}\n", e),
-                    )
-                }
-            }
-        },
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to add user-provided entropy: {e}\n"),
-        )
-    }
-}
-
 /// The core logic: decode hex, open /dev/urandom, run RNDADDENTROPY, optionally RNDRESEEDCRNG.
-fn reset_entropy_with_bytes(hex_string: &str) -> std::io::Result<()> {
+pub fn reset_entropy_with_bytes(hex_string: &str) -> std::io::Result<()> {
     eprintln!("-- reset_entropy_with_bytes called --");
 
     // 0. Print out some environment debug info
