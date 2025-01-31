@@ -42,7 +42,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && req.url === '/run') {
     let body = [];
     req.on('data', chunk => body.push(chunk));
-    req.on('end', () => {
+    req.on('end', async () => {
       body = Buffer.concat(body).toString();
       let jsonBody;
       try {
@@ -54,7 +54,7 @@ const server = http.createServer(async (req, res) => {
 
       const { code, entropy } = jsonBody;
 
-      // Reset randomness if entropy is provided
+      // Optionally re-seed your custom RNG
       if (entropy) {
         initializeRandomGenerator(entropy);
       }
@@ -63,30 +63,80 @@ const server = http.createServer(async (req, res) => {
       let stderr = '';
       let exitCode = 0;
 
+      // Save original console methods
+      const originalLog = console.log;
+      const originalError = console.error;
+
+      // Override console to capture output
+      console.log = (...args) => { stdout += args.join(' ') + '\n'; };
+      console.error = (...args) => { stderr += args.join(' ') + '\n'; };
+
+      // Save original Math.random
+      const originalRandom = Math.random;
+      Math.random = customRandom;
+
       try {
-        const sandboxConsole = {
-          log: (...args) => { stdout += args.join(' ') + '\n'; },
-          error: (...args) => { stderr += args.join(' ') + '\n'; }
-        };
-
-        // Create a new Math object that inherits from the global Math
-        const sandboxMath = Object.create(Math);
-        // Override only the random method
-        sandboxMath.random = customRandom;
-
+        // Create our sandbox/context
         const sandbox = {
-          console: sandboxConsole,
-          result: null,
-          crypto: crypto,
-          Math: sandboxMath
+          // Expose require so user code can require('pg'), etc.
+          require,
+          // Provide process if you want them to access certain environment vars or CPU usage
+          process,
+          // Overriding console so user logs go into our captured output
+          console,
+          // A fresh Math that only overrides random
+          Math: Object.assign(Object.create(Math), { random: customRandom }),
+          // If your user code needs setTimeout, Buffer, or others, include them
+          setTimeout,
+          Buffer,
+          // If you want to allow top-level variables, e.g. 'Client' from pg
+          // you can either let them do `const { Client } = require('pg')`
+          // or you can inject it directly. Example:
+          // Client: require('pg').Client
         };
 
-        vm.runInNewContext(code, sandbox, { timeout: 360000 });
+        // Make the sandbox a real VM context
+        vm.createContext(sandbox);
+
+        // Wrap user code in an async IIFE so we get a Promise back
+        // and so that top-level awaits or async calls are handled.
+        const asyncWrapper = `
+          (async () => {
+            try {
+              ${code}
+            } catch (err) {
+              console.error('Unhandled error:', err);
+            }
+          })()
+        `;
+
+        // Compile the script (with a big but not infinite timeout for synchronous parts)
+        const script = new vm.Script(asyncWrapper, { timeout: 5000 });
+
+        // Run it in the context
+        const resultPromise = script.runInContext(sandbox);
+
+        // Now 'resultPromise' is a Promise that will resolve once user’s async code finishes.
+        // We can await that or do .then()
+        await Promise.race([
+          resultPromise,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('User code timed out')), 60000)
+          )
+        ]);
+
       } catch (err) {
         stderr += (err.stack || err.toString()) + '\n';
         exitCode = 1;
+      } finally {
+        // Restore console
+        console.log = originalLog;
+        console.error = originalError;
+        // Restore Math.random
+        Math.random = originalRandom;
       }
 
+      // Send response
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ stdout, stderr, exit_code: exitCode }));
     });
