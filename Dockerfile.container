@@ -44,15 +44,14 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && update-ca-certificates
 
-# Create a virtual environment and install the required Python packages
-RUN python3 -m venv /opt/venv && \
-    /opt/venv/bin/pip install --no-cache-dir \
-      cachetools \
-      nose \
-      numpy \
-      python-dateutil \
-      pytz \
-      six
+# Create a virtual environment
+RUN python3 -m venv /opt/venv
+
+# Copy requirements.txt
+COPY requirements.txt .
+
+# Install Python packages
+RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 
 # Make sure the venv’s bin/ is first in PATH
 ENV PATH="/opt/venv/bin:${PATH}"
