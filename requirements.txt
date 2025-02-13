@@ -24,7 +24,6 @@ networkx
 sympy
 scikit-learn
 terra-python
-codegen
 elevenlabs
 chromadb
 scrapybara
