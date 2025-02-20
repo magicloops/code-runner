@@ -7,6 +7,8 @@ use serde_json::json;
 use tokio::process::Command;
 use tempfile::tempdir;
 use reqwest;
+use std::io;
+use chrono::DateTime;
 
 use crate::entropy_reset::reset_entropy_with_bytes;
 
@@ -26,6 +28,21 @@ pub struct Payload {
 pub struct RunRequest {
     payload: Payload,
     entropy: Option<String>,
+    datetime: Option<String>, 
+}
+
+fn update_clock(datetime: &str) -> io::Result<()> {
+    let output = std::process::Command::new("date")
+        .arg("-s")
+        .arg(datetime)
+        .output()?;
+
+    if output.status.success() {
+        println!("Date set successfully");
+    } else {
+        eprintln!("Failed to set date: {}", String::from_utf8_lossy(&output.stderr));
+    }
+    Ok(())
 }
 
 pub async fn run_handler(Json(body): Json<RunRequest>) -> (StatusCode, axum::Json<serde_json::Value>) {
@@ -36,6 +53,28 @@ pub async fn run_handler(Json(body): Json<RunRequest>) -> (StatusCode, axum::Jso
                 StatusCode::INTERNAL_SERVER_ERROR,
                 axum::Json(json!({ "error": format!("Failed to reset entropy: {}", e) })),
             );
+        }
+    }
+
+    // If datetime is provided, update the clock
+    if let Some(datetime) = &body.datetime {
+        match DateTime::parse_from_rfc3339(datetime) {
+            Ok(parsed_time) => {
+                let formatted_time = parsed_time.format("%Y-%m-%d %H:%M:%S%.3f").to_string();
+                if let Err(e) = update_clock(&formatted_time) {
+                    eprintln!("Time sync failed: {}", e);
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        axum::Json(json!({ "error": format!("Failed to update clock: {}", e) })),
+                    );
+                }
+            },
+            Err(e) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    axum::Json(json!({ "error": format!("Invalid datetime format: {}", e) })),
+                );
+            }
         }
     }
 

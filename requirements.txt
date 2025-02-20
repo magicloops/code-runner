@@ -23,16 +23,4 @@ seaborn
 networkx
 sympy
 scikit-learn
-terra-python
-elevenlabs
-chromadb
 scrapybara
-lumaai
-langchain
-langchain-openai
-langchain-anthropic
-langchain-mistralai
-mistralai
-groq
-elasticsearch
-google-genai
