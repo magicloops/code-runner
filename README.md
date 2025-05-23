@@ -39,6 +39,13 @@ Additionally, this repository contains a Node.js script (`node-runner.js`) that 
   ```
 - If `python` is not available but `python3` is, you may need to adjust the source to invoke `python3` directly (see [Testing the Service](#testing-the-service)).
 
+### PDF Parsing Libraries
+Both runtimes ship with PDF parsing packages preinstalled:
+- **Python**: [`PyPDF2`](https://pypi.org/project/PyPDF2/)
+- **Node.js**: [`pdf-parse`](https://www.npmjs.com/package/pdf-parse)
+
+These allow user code to extract text from PDF files without installing additional dependencies.
+
 ### Dependencies
 This project uses:
 - **Axum** for the HTTP server
