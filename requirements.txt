@@ -24,3 +24,5 @@ networkx
 sympy
 scikit-learn
 scrapybara
+pypdf
+python-docx

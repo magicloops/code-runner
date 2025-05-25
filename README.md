@@ -39,6 +39,13 @@ Additionally, this repository contains a Node.js script (`node-runner.js`) that 
   ```
 - If `python` is not available but `python3` is, you may need to adjust the source to invoke `python3` directly (see [Testing the Service](#testing-the-service)).
 
+### Document Parsing Libraries
+Both runtimes ship with PDF and Word parsing packages preinstalled:
+- **Python**: [`PyPDF2`](https://pypi.org/project/PyPDF2/) and [`python-docx`](https://pypi.org/project/python-docx/)
+- **Node.js**: [`pdf-parse`](https://www.npmjs.com/package/pdf-parse) and [`mammoth`](https://www.npmjs.com/package/mammoth)
+
+These allow user code to extract text from PDF and DOCX files without installing additional dependencies.
+
 ### Dependencies
 This project uses:
 - **Axum** for the HTTP server
