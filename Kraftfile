@@ -11,4 +11,4 @@ labels:
 
 rootfs: ./Dockerfile
 
-cmd: ["/usr/local/bin/code-runner"]
+cmd: ["/usr/bin/wrapper.sh"]
