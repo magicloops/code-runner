@@ -45,6 +45,9 @@ COPY ./src ./src
 # Build the Rust project
 RUN cargo build --release
 
+# Create blank directory to be used as the source of other empty directories.
+RUN mkdir /blank
+
 FROM scratch
 
 # Node binary
@@ -99,5 +102,8 @@ COPY --from=sys /lib/x86_64-linux-gnu/libc.so.6 /lib/x86_64-linux-gnu/libc.so.6
 # Dynamic linker / loader
 COPY --from=sys /lib64/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
 
-# Copy wrappers script
+# Create temporary directory.
+COPY --from=sys /blank /tmp
+
+# Copy wrapper script.
 COPY ./wrapper.sh /usr/bin/wrapper.sh
