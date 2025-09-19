@@ -1,5 +1,5 @@
 # Use Debian Bookworm as the base image for both build and runtime
-FROM debian:bookworm-slim as sys
+FROM debian:bookworm-slim AS sys
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
