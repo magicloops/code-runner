@@ -27,3 +27,5 @@ Cargo.lock
 base/
 
 rootfs*
+.rootfs
+initrd
